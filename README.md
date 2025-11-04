@@ -1,1 +1,2 @@
-This is an ESP32 IOT firmware for PlantGPT project. it has Wraper classes for DHT,Wifi,MQtt for easy communication with IOT devices including a real time streamming prototcal class for efficent camera streaming efficently on ESP32 devices
+This is an ESP32 IoT firmware for the PlantGPT project.
+It includes wrapper classes for DHT sensors, Wi-Fi, and MQTT, enabling easy communication with IoT devices. The firmware also features a real-time streaming protocol designed for efficient camera streaming on ESP32 hardware.
