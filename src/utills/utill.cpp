@@ -89,7 +89,7 @@ void Util::subscribeToATopic() {
         connectToMqtt();
         mqtt.subscribe("iot/fan/state"); 
     }else {
-        mqtt.subscribe("iot/fan/state");
+        //mqtt.subscribe("iot/fan/state");
     }
      
 }
@@ -116,4 +116,19 @@ void Util::handleIncomingMsg(char* topic, byte* payload, unsigned int length) {
             Serial.println("Fan turned OFF");
         }
     }
+}
+//Publish DHT reading
+void Util::publisheDHTReadings(float temp, float hum) {
+    //temp
+    if(!mqtt.connected()) {
+        connectToMqtt();
+    }
+    StaticJsonDocument<100> doc;
+    doc["temp"] = temp;
+    doc["hum"] = hum;
+    char payload[100];
+    serializeJson(doc,payload);
+
+    mqtt.loop(); //keep the connection alive
+    mqtt.publish("iot/temp",payload);
 }

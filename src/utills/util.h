@@ -23,6 +23,7 @@ private:
         void connectToMqtt();
         void subscribeToATopic();
         void handleIncomingMsg(char* topic, byte* payload, unsigned int length);
+        void publisheDHTReadings(float temp,float hum);
 
        
     private:
