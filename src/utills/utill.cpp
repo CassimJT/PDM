@@ -1,6 +1,7 @@
 #include "util.h"
 
 Util::Util()
+
 {
     //constractor
     m_ssid = "HUAWEI-B525-B3AC";
@@ -109,11 +110,10 @@ void Util::handleIncomingMsg(char* topic, byte* payload, unsigned int length) {
     if (String(topic) == "iot/fan/state") {
         if (message == "on") {
             // Turn ON the fan
-            digitalWrite(22, HIGH);  
-            Serial.println("Fan turned ON");
+            turnFunOn();
         } else if (message == "off") {
-            digitalWrite(22, LOW);  
-            Serial.println("Fan turned OFF");
+            //Turn Off the fun
+            turnFunOff();
         }
     }
 }
@@ -131,4 +131,53 @@ void Util::publisheDHTReadings(float temp, float hum) {
 
     mqtt.loop(); //keep the connection alive
     mqtt.publish("iot/temp",payload);
+}
+//Notify user via API
+void Util::notifyUser(String msg) {
+    if(WiFi.status() == WL_CONNECTED) {
+        http.begin("http://192.168.8.116:3000/api/iot/msg");  
+        http.addHeader("Content-Type", "application/json");
+        StaticJsonDocument<200> json;
+        json["msg"] = msg;
+
+        String payload;
+        serializeJson(json,payload);
+        int statuscode = http.POST(payload);
+        if(statuscode == 200) {
+            Serial.println("Paylod sent");
+        }else {
+            Serial.println("Error: "+ statuscode);
+        }
+        http.end();
+   }else {
+        Serial.println("Not connected to any network");
+   }
+}
+//attach serial
+void Util::attachSerial(HardwareSerial &serial) {
+    _serial  = &serial;
+}
+// turn on the buzzser
+void Util::turnBuzzerOn() {
+    if(_serial) {
+        _serial->println("buzzerOn"); 
+    }
+}
+//turn on the fun
+void Util::turnFunOn() {
+    if(_serial) {
+        _serial->println("funOn");  
+    }
+}
+//turn off the fun
+void Util::turnFunOff() {
+    if (_serial){
+        _serial->println("funOff"); 
+    }    
+}
+
+//Mqtt
+
+PubSubClient& Util::getMqttp() {
+    return mqtt;
 }

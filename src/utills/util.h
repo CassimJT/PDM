@@ -8,6 +8,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
+
 class Util
 {
 private:
@@ -24,6 +25,12 @@ private:
         void subscribeToATopic();
         void handleIncomingMsg(char* topic, byte* payload, unsigned int length);
         void publisheDHTReadings(float temp,float hum);
+        void notifyUser(String msg);
+        void attachSerial(HardwareSerial &serial);
+        void turnBuzzerOn();
+        void turnFunOn();
+        void turnFunOff();
+        PubSubClient& getMqttp();
 
        
     private:
@@ -35,6 +42,8 @@ private:
         PubSubClient mqtt;
         const char* mqtt_server = "192.168.8.130";
         const int port = 1883;
+
+        HardwareSerial * _serial = nullptr;
 
 };
 

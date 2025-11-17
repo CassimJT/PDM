@@ -25,7 +25,7 @@ public:
         void updateHumidity();
         float getHumidity()const;
 
-        void updateDhtFromSerial();
+        void updateDht();
        
 private:
     float m_temp;

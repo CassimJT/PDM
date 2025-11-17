@@ -55,25 +55,13 @@ float DHTSensor::getHumidity()const {
     return m_humidity;
 }
 //update temp from Arduino via UART
-void DHTSensor::updateDhtFromSerial(){
-    if(Serial.available()) {
-        String data = Serial.readStringUntil('\n');
-        data.trim();
-        int commaIndex = data.indexOf(',');
-        if(commaIndex > 0) {
-            String tempString = data.substring(0,commaIndex);
-            String humString = data.substring(commaIndex + 1);
+void DHTSensor::updateDht(){
+     if(m_dht) {
+        m_temp = m_dht->readTemperature();
+        m_humidity = m_dht->readHumidity();
 
-            float temp = tempString.toFloat();
-            float hum = humString.toFloat();
-            if(!isnan(temp) && !isnan(hum)) {
-                m_temp = temp;
-                m_humidity = hum;
-            }else {
-                Serial.println("Invalid temp or humidity");
-            }
-        }else {
-            Serial.println("Invalide formate");
+        if(isnan(m_temp) || isnan(m_humidity)) {
+          return;
         }
     }
 }

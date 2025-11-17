@@ -1,25 +1,39 @@
 #include <Arduino.h>
-#include "utills/util.h" // Ensure this path is correct
+#include "utills/util.h" 
 #include "sensors/rtp_server.h"
+#include "sensors/dhtSensor.h"
 #include <HardwareSerial.h>
 
 
-// Definitions
+//--------------------------------------------------
 #define red 0
 #define green 15
 #define blue 12
-#define txPin 32
-#define rxPin 33
+#define txPin 1
+#define rxPin 3
+#define DHTPIN 32      
+#define DHTTYPE DHT11
 int _delay = 1000;
+
+//----------------------------------------------
+unsigned long lastmills = 0;
+unsigned long debounceDelay = 60;
+unsigned long lastDebounceTime;
+const unsigned long sendInterval = 5000;
+
+
+//-------- definitions --------------------------
+void startCamera();
+void readTempAndHumidity();
+
+//-------------------------------------------------
+HardwareSerial hardwareSerial(2);
 Util util;
 Rtp_server server;
+DHTSensor dht;
 TaskHandle_t videoTaskHandle = NULL;
 
-void startCamera();
-
-// Use custom HardwareSerial instance
-HardwareSerial hardwareSerial(2);
-
+//---------------Setup -------------------------
 void setup() {
   pinMode(red, OUTPUT);
   pinMode(green, OUTPUT);
@@ -27,22 +41,27 @@ void setup() {
   util.connectToWifi(blue,red,green);
   Serial.begin(9600); 
   hardwareSerial.begin(9600, SERIAL_8N1, rxPin, txPin); 
+  util.attachSerial(hardwareSerial);
+  dht.initDHT(DHTPIN,DHTTYPE);
   //startCamera();
   delay(2000);
   Serial.println("Master ready");
 
 }
-//main loop
-void loop() {
- if(hardwareSerial.available()) {
-    String data = hardwareSerial.readStringUntil('\n');
-    data.trim();
-    Serial.println(data);
- }
- 
- delay(1000);
-}
 
+//**************** Main**************** */
+void loop() {
+  //util.turnBuzzerOn();
+  readTempAndHumidity();
+   if(util.getMqttp().connected()) {
+      util.getMqttp().loop();
+   }
+   delay(1000);
+}
+/******************End main */
+
+
+//---------------camera -----------
 void startCamera() {
   server.initialiseCamera();
   server.getFrameQuality();
@@ -57,4 +76,16 @@ void startCamera() {
     &videoTaskHandle,
     1 // Core 1
   );
+}
+
+//----------------read temp----------
+void readTempAndHumidity() {
+    dht.updateDht();
+    float temp = dht.getTemp();
+    float hum = dht.getHumidity();
+
+    if (millis() - lastmills >= sendInterval) {
+        util.publisheDHTReadings(temp, hum);
+        lastmills = millis();
+    }
 }
