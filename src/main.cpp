@@ -38,6 +38,7 @@ void setup() {
   pinMode(red, OUTPUT);
   pinMode(green, OUTPUT);
   pinMode(blue, OUTPUT);
+  pinMode(DHTPIN, OUTPUT);
   util.connectToWifi(blue,red,green);
   Serial.begin(9600); 
   hardwareSerial.begin(9600, SERIAL_8N1, rxPin, txPin); 
@@ -78,7 +79,7 @@ void startCamera() {
   );
 }
 
-//----------------read temp----------
+//------------read temp----------
 void readTempAndHumidity() {
     dht.updateDht();
     float temp = dht.getTemp();

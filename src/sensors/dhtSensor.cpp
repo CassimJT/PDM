@@ -5,6 +5,7 @@ m_humidity(0.0),
 m_temp(0.0)
 {
     //constractor
+    
 }
 
 DHTSensor::~DHTSensor()
@@ -26,7 +27,7 @@ void DHTSensor::initDHT(byte dhtpin, int dhtType) {
 void DHTSensor::updateTemp(){
     if(m_dht){
         float temp = m_dht->readTemperature();
-        if(!isnan(m_temp)){
+        if(!isnan(temp)){
              m_temp = temp;
         }else {
              Serial.println("Invalid Temperature");
@@ -41,7 +42,7 @@ float DHTSensor::getTemp() const {
 void DHTSensor::updateHumidity() {
     if(m_dht) {
         float humidity = m_dht->readHumidity();
-        if(!isnan(m_humidity)){
+        if(!isnan(humidity)){
             m_humidity = humidity;
             
         }else{
@@ -61,6 +62,7 @@ void DHTSensor::updateDht(){
         m_humidity = m_dht->readHumidity();
 
         if(isnan(m_temp) || isnan(m_humidity)) {
+          Serial.println("Invalid Humidity");
           return;
         }
     }
