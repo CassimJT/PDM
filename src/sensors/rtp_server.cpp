@@ -34,7 +34,7 @@ void Rtp_server::configCamera() {
     config.xclk_freq_hz = 20000000;
     config.pixel_format = PIXFORMAT_JPEG;
     config.frame_size = FRAMESIZE_QQVGA;
-    config.jpeg_quality = 13;
+    config.jpeg_quality = 20;
     config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
 

@@ -44,7 +44,7 @@ void setup() {
   hardwareSerial.begin(9600, SERIAL_8N1, rxPin, txPin); 
   util.attachSerial(hardwareSerial);
   dht.initDHT(DHTPIN,DHTTYPE);
-  //startCamera();
+  startCamera();
   delay(2000);
   Serial.println("Master ready");
 
@@ -79,7 +79,7 @@ void startCamera() {
   );
 }
 
-//------------read temp----------
+//------------ read temp----------
 void readTempAndHumidity() {
     dht.updateDht();
     float temp = dht.getTemp();
