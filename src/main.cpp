@@ -4,9 +4,10 @@
 #include "sensors/camera_manager.h"
 #include "sensors/mjpeg_server.h"
 #include <HardwareSerial.h>
+#include <IRremoteESP8266.h>
+#include <IRrecv.h>
+#include <IRutils.h>
 
-// --------------------------------------------------
-// Pin definitions
 #define RED     0
 #define GREEN   15
 #define BLUE    12
@@ -14,93 +15,126 @@
 #define RX_PIN  3
 #define DHT_PIN 32
 #define DHT_TYPE DHT11
+#define BUZZER_PIN 14
+#define IR_PIN   33  
 
-// --------------------------------------------------
-// Global objects
-HardwareSerial slaveSerial(2);   // UART2 to your Arduino slave
+#define IR_BUTTON_1 0xFF30CF
+#define IR_BUTTON_0 0xFF6897
+
+HardwareSerial slaveSerial(2);  
 Util           util;
 DHTSensor      dht;
 CameraManager  camera;
-MjpegServer    webServer(80);    // ← change to 81 if port 80 is blocked
+MjpegServer    webServer(80);    
 
-// --------------------------------------------------
-// Timing
 unsigned long lastDHTRead = 0;
-const unsigned long DHT_INTERVAL = 5000;   // 5 seconds
+const unsigned long DHT_INTERVAL = 5000;   
+unsigned long lastIRPress = 0;
+const unsigned long IR_DEBOUNCE = 300;
+bool systemRunning = false;  
+bool buzzerState = false;
 
-// --------------------------------------------------
+IRrecv irReceiver(IR_PIN);
+decode_results irResults;
+
 void setup() {
     Serial.begin(115200);
+    delay(1000);
 
-    // LED pins
     pinMode(RED,   OUTPUT);
     pinMode(GREEN, OUTPUT);
     pinMode(BLUE,  OUTPUT);
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
+    
+    digitalWrite(RED, LOW);
+    digitalWrite(GREEN, LOW);
+    digitalWrite(BLUE, LOW);
 
-    // --------------------------------------------------
-    // 1. Connect to WiFi
     util.connectToWifi(BLUE, RED, GREEN);
 
-    // --------------------------------------------------
-    // 2. Start camera
-    if (!camera.begin()) {
-        Serial.println("Camera init FAILED!");
-        while (true) {
-            digitalWrite(RED, HIGH);
-            delay(200);
-            digitalWrite(RED, LOW);
-            delay(200);
-        }
+    if (WiFi.status() == WL_CONNECTED) {
+        camera.begin();
+        webServer.begin();
+        slaveSerial.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
+        util.attachSerial(slaveSerial);
+        pinMode(DHT_PIN, INPUT);
+        dht.initDHT(DHT_PIN, DHT_TYPE);
+        delay(2000);
     }
-    Serial.println("Camera OK");
-
-    // --------------------------------------------------
-    // 3. Start MJPEG web server
-    webServer.begin();                     // This prints the URL
-    Serial.println("Web server started");
-
-    // --------------------------------------------------
-    // 4. UART to Arduino slave
-    slaveSerial.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
-    util.attachSerial(slaveSerial);
-
-    // --------------------------------------------------
-    // 5. DHT11 sensor
-    pinMode(DHT_PIN, INPUT);
-    dht.initDHT(DHT_PIN, DHT_TYPE);
+    
+    irReceiver.enableIRIn();
+    digitalWrite(GREEN, LOW);
     delay(2000);
+    digitalWrite(BLUE, HIGH);
+    systemRunning = false;
+}
 
-    Serial.println("=== ESP32-CAM MASTER READY ===");
-    Serial.print("Video stream → http://");
-    Serial.print(WiFi.localIP());
-    Serial.println("/");
+void startLoopFunctions() {
+    if (!systemRunning) {
+        systemRunning = true;
+        lastDHTRead = millis();
+        digitalWrite(RED, LOW);
+        digitalWrite(BLUE, LOW);
+        digitalWrite(GREEN, HIGH);
+        tone(BUZZER_PIN, 4000);
+        delay(100);
+        noTone(BUZZER_PIN);
+    }
+}
+
+void stopLoopFunctions() {
+    if (systemRunning) {
+        systemRunning = false;
+        if (buzzerState) {
+            noTone(BUZZER_PIN);
+            digitalWrite(BUZZER_PIN, LOW);
+            buzzerState = false;
+        }
+        digitalWrite(GREEN, LOW);
+         digitalWrite(BLUE, LOW);
+        digitalWrite(RED, HIGH);
+        tone(BUZZER_PIN, 4000);
+        delay(50);
+        noTone(BUZZER_PIN);
+        delay(50);
+        tone(BUZZER_PIN, 4000);
+        delay(50);
+        noTone(BUZZER_PIN);
+    }
 }
 
 void loop() {
-    // --------------------------------------------------
-    // 1. Handle MJPEG clients (non-blocking, very fast)
+    if (irReceiver.decode(&irResults)) {
+        if (irResults.value != 0xFFFFFFFFFFFFFFFF) {
+            if (millis() - lastIRPress > IR_DEBOUNCE) {
+                if (irResults.value == IR_BUTTON_1) {
+                    startLoopFunctions();
+                } else if (irResults.value == IR_BUTTON_0) {
+                    stopLoopFunctions();
+                }
+                lastIRPress = millis();
+            }
+        }
+        irReceiver.resume();
+    }
+
     webServer.handleClient();
 
-    // --------------------------------------------------
-    // 2. Read DHT11 every 5 seconds and publish via MQTT
-    if (millis() - lastDHTRead >= DHT_INTERVAL) {
-        dht.updateDht();
-        float temp = dht.getTemp();
-        float hum  = dht.getHumidity();
-
-        if (!isnan(temp) && !isnan(hum)) {
-            util.publisheDHTReadings(temp, hum);
-        } else {
-            Serial.println("DHT read failed");
+    if (systemRunning) {
+        if (millis() - lastDHTRead >= DHT_INTERVAL) {
+            dht.updateDht();
+            float temp = dht.getTemp();
+            float hum  = dht.getHumidity();
+            if (!isnan(temp) && !isnan(hum)) {
+                util.publisheDHTReadings(temp, hum);
+            }
+            lastDHTRead = millis();
         }
-        lastDHTRead = millis();
+        if (util.getMqttp().connected()) {
+            util.getMqttp().loop();
+        }
     }
-
-    // --------------------------------------------------
-    // 3. Keep MQTT alive
-    if (util.getMqttp().connected()) {
-        util.getMqttp().loop();
-    }
-
-  
+    
+    delay(10);
 }
