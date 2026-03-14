@@ -228,8 +228,6 @@ void loop() {
             float temp = dht.getTemp();
             float hum  = dht.getHumidity();
             if (!isnan(temp) && !isnan(hum)) {
-                Serial.println(temp);
-                Serial.println(hum);
                 util.publisheDHTReadings(temp, hum);
                 
                 // Alert if temperature or humidity is out of range
@@ -257,5 +255,5 @@ void loop() {
         }
     }
     
-    delay(10);
+    delay(100);
 }
