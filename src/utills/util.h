@@ -53,12 +53,12 @@ public:
     void publishError(const char* error);
     
     // Legacy methods (wrapped for compatibility)
-    void publisheDHTReadings(float temp, float hum);  // Wrapper for publishSensors
+    void publisheDHTReadings(float temp, float hum);  
     void notifyUser(String msg);
     
     // Hardware Control
     void attachSerial(HardwareSerial &serial);
-    void turnBuzzerOn(int pin, int frequency);
+    void turnBuzzerOn(int pin, char sig);
     void turnFunOn();
     void turnFunOff();
     
@@ -73,7 +73,7 @@ private:
     HTTPClient http;
     WiFiClient wificlient;
     PubSubClient mqtt;
-    const char* mqtt_server = "192.168.8.130";  // Your broker IP
+    const char* mqtt_server = "192.168.8.130"; 
     const int port = 1883;
     
     // Device state

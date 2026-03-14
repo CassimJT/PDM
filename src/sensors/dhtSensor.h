@@ -30,7 +30,7 @@ public:
 private:
     float m_temp;
     float m_humidity;
-    DHT *m_dht = nullptr;
+    DHT *m_dht ;
 };
 
 

@@ -79,7 +79,7 @@ void Util::disconnectWifi(byte redpin, byte greenpin) {
     rgb(redpin, 'H');   // red on
 }
 
-// Connecting to MQTT (PNDDevice compatible)
+// Connecting to MQTT with Last Will and Testament
 void Util::connectToMqtt() {
     mqtt.setClient(wificlient);
     mqtt.setServer(mqtt_server, port);
@@ -92,18 +92,25 @@ void Util::connectToMqtt() {
     if (!mqtt.connected()) {
         Serial.println("Connecting to MQTT...");
         
-        // Use device ID as client ID
-        if (mqtt.connect(DEVICE_ID, "plantdoctor", "device")) {  // Optional username/password
-            Serial.println("Connected to MQTT");
+        // Setup Last Will and Testament
+        String willTopic = "plantdoctor/device/" + String(DEVICE_ID) + "/availability";
+        const char* willPayload = "offline";
+        boolean willRetain = true;  // Retain so new clients see last state
+        uint8_t willQoS = 1;        // QoS 1 ensures delivery
+        
+        // Connect with LWT
+        if (mqtt.connect(DEVICE_ID, 
+                        "plantdoctor",    // username (optional)
+                        "device",         // password (optional)
+                        willTopic.c_str(), // will topic
+                        willQoS,          // will QoS
+                        willRetain,       // will retain
+                        willPayload)) {   // will message
+                        
+            Serial.println("Connected to MQTT with LWT");
             m_mqttConnected = true;
-            
-            // Publish online availability
             publishAvailability(true);
-            
-            // Send discovery message
             publishDiscovery();
-            
-            // Subscribe to command topic
             subscribeToTopics();
             
         } else {
@@ -114,10 +121,25 @@ void Util::connectToMqtt() {
     }
 }
 
+// Updated disconnectFromMqtt with graceful shutdown
 void Util::disconnectFromMqtt() {
     if (mqtt.connected()) {
-        publishAvailability(false);  // Tell broker we're going offline
+        Serial.println("Util: Performing graceful MQTT shutdown...");
+        
+        // Publish offline status (retained message)
+        publishAvailability(false);
+        
+        // Small non-blocking delay to ensure publish is sent
+        unsigned long publishStart = millis();
+        while (millis() - publishStart < 50) {
+            mqtt.loop();  // Process MQTT traffic
+            delay(1);
+        }
+        
+        // Disconnect MQTT properly (sends DISCONNECT packet)
         mqtt.disconnect();
+        Serial.println("Util: MQTT disconnected gracefully");
+        
         m_mqttConnected = false;
     }
 }
@@ -162,18 +184,6 @@ void Util::handleIncomingMsg(char* topic, byte* payload, unsigned int length) {
     
     if (strlen(command) > 0) {
         processCommand(command, doc);
-    } else {
-        // Legacy command handling (for backward compatibility)
-        String topicStr = String(topic);
-        if (topicStr.endsWith("/command")) {
-            if (message == "on" || (doc.containsKey("value") && doc["value"] == true)) {
-                turnFunOn();
-                publishStatus("on");
-            } else if (message == "off" || (doc.containsKey("value") && doc["value"] == false)) {
-                turnFunOff();
-                publishStatus("off");
-            }
-        }
     }
 }
 
@@ -196,15 +206,12 @@ void Util::processCommand(const char* command, JsonDocument& doc) {
         
     } else if (strcmp(command, "get_sensors") == 0) {
         // This will be handled by the main loop when it reads sensors
-        // Just acknowledge
         Serial.println("Sensor request received");
         
     } else if (strcmp(command, "configure") == 0) {
         if (doc.containsKey("config")) {
             JsonObject config = doc["config"];
-            // Handle configuration
             if (config.containsKey("interval")) {
-                // Set reading interval
                 Serial.print("Setting interval to: ");
                 Serial.println(config["interval"].as<int>());
             }
@@ -213,7 +220,7 @@ void Util::processCommand(const char* command, JsonDocument& doc) {
     }
 }
 
-// Publish discovery message (so Qt PNDDevice can find this device)
+// Publish discovery message
 void Util::publishDiscovery() {
     if (!mqtt.connected()) return;
     
@@ -233,7 +240,7 @@ void Util::publishDiscovery() {
     char payload[256];
     serializeJson(doc, payload);
     
-    mqtt.publish(MQTT_DISCOVERY, payload);
+    mqtt.publish("plantdoctor/discovery", payload);
     Serial.println("Discovery published");
 }
 
@@ -242,15 +249,17 @@ void Util::publishAvailability(bool online) {
     if (!mqtt.connected()) return;
     
     const char* status = online ? "online" : "offline";
-    mqtt.publish(MQTT_AVAILABILITY, status, true);  // Retained message
+    // Publish with retain=true so new subscribers get last known state
+    mqtt.publish(("plantdoctor/device/" + String(DEVICE_ID) + "/availability").c_str(), 
+                 status, 
+                 true);  // retained
     Serial.print("Availability published: ");
     Serial.println(status);
 }
 
-// Publish sensor data (PNDDevice format)
+// Publish sensor data
 void Util::publishSensors(float temp, float hum) {
     if (!mqtt.connected()) {
-        // Try to reconnect if needed
         unsigned long now = millis();
         if (now - m_lastReconnectAttempt > 5000) {
             m_lastReconnectAttempt = now;
@@ -267,7 +276,8 @@ void Util::publishSensors(float temp, float hum) {
     char payload[128];
     serializeJson(doc, payload);
     
-    mqtt.publish(MQTT_SENSORS, payload);
+    mqtt.publish(("plantdoctor/device/" + String(DEVICE_ID) + "/sensors").c_str(), 
+                 payload);
     Serial.print("Sensors published: ");
     Serial.println(payload);
 }
@@ -283,7 +293,8 @@ void Util::publishStatus(const char* state) {
     char payload[128];
     serializeJson(doc, payload);
     
-    mqtt.publish(MQTT_STATUS, payload);
+    mqtt.publish(("plantdoctor/device/" + String(DEVICE_ID) + "/status").c_str(), 
+                 payload);
 }
 
 // Publish error message
@@ -297,7 +308,8 @@ void Util::publishError(const char* error) {
     char payload[128];
     serializeJson(doc, payload);
     
-    mqtt.publish(MQTT_ERROR, payload);
+    mqtt.publish(("plantdoctor/device/" + String(DEVICE_ID) + "/error").c_str(), 
+                 payload);
 }
 
 // Legacy method wrapper
@@ -337,9 +349,16 @@ void Util::attachSerial(HardwareSerial &serial) {
 }
 
 // Turn on the buzzer
-void Util::turnBuzzerOn(int pin, int frequency) {
+void Util::turnBuzzerOn(int pin, char sig) {
     pinMode(pin, OUTPUT);
-    tone(pin, frequency); 
+    if(sig == 'H'){
+        digitalWrite(pin, HIGH);
+    } else if(sig == 'L') {
+        digitalWrite(pin, LOW);
+    } else {
+        Serial.print("Invalid Option");
+    }
+    digitalWrite(pin,sig);
 }
 
 // Turn on the fan
