@@ -80,42 +80,56 @@ void Util::disconnectWifi(byte redpin, byte greenpin) {
 }
 
 // Connecting to MQTT with Last Will and Testament
+// Connecting to MQTT with automatic broker failover
 void Util::connectToMqtt() {
+    const char* brokers[] = {"192.168.8.130", "192.168.8.149"}; // desktop broker, laptop broker
+    const int brokerCount = 2;
+
     mqtt.setClient(wificlient);
-    mqtt.setServer(mqtt_server, port);
-    
+
     // Set callback before connecting
     mqtt.setCallback([this](char* topic, byte* payload, unsigned int length) {
         this->handleIncomingMsg(topic, payload, length);
     });
-    
+
     if (!mqtt.connected()) {
-        Serial.println("Connecting to MQTT...");
-        
-        // Setup Last Will and Testament
-        String willTopic = "plantdoctor/device/" + String(DEVICE_ID) + "/availability";
-        const char* willPayload = "offline";
-        boolean willRetain = true;  // Retain so new clients see last state
-        uint8_t willQoS = 1;        // QoS 1 ensures delivery
-        
-        // Connect with LWT
-        if (mqtt.connect(DEVICE_ID, 
-                        "plantdoctor",    // username (optional)
-                        "device",         // password (optional)
-                        willTopic.c_str(), // will topic
-                        willQoS,          // will QoS
-                        willRetain,       // will retain
-                        willPayload)) {   // will message
-                        
-            Serial.println("Connected to MQTT with LWT");
-            m_mqttConnected = true;
-            publishAvailability(true);
-            publishDiscovery();
-            subscribeToTopics();
-            
-        } else {
-            Serial.print("Failed to connect to MQTT error: ");
-            Serial.println(mqtt.state());
+        Serial.println("Connecting to MQTT with failover...");
+
+        bool connected = false;
+        for (int i = 0; i < brokerCount; i++) {
+            mqtt.setServer(brokers[i], port);
+
+            // Setup Last Will and Testament
+            String willTopic = "plantdoctor/device/" + String(DEVICE_ID) + "/availability";
+            const char* willPayload = "offline";
+            boolean willRetain = true;
+            uint8_t willQoS = 1;
+
+            if (mqtt.connect(DEVICE_ID,
+                             "plantdoctor",    // username
+                             "device",         // password
+                             willTopic.c_str(),
+                             willQoS,
+                             willRetain,
+                             willPayload)) {
+                Serial.print("Connected to MQTT broker: ");
+                Serial.println(brokers[i]);
+                m_mqttConnected = true;
+                connected = true;
+                publishAvailability(true);
+                publishDiscovery();
+                subscribeToTopics();
+                break;
+            } else {
+                Serial.print("Failed to connect to broker: ");
+                Serial.print(brokers[i]);
+                Serial.print(" - error: ");
+                Serial.println(mqtt.state());
+            }
+        }
+
+        if (!connected) {
+            Serial.println("MQTT connection failed on all brokers.");
             m_mqttConnected = false;
         }
     }

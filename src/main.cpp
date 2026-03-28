@@ -121,7 +121,7 @@ void setup() {
 
         camera.begin();
         webServer.begin();
-
+        webServer.setMaxFPS(30);
         slaveSerial.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
         util.attachSerial(slaveSerial);
 
@@ -295,10 +295,6 @@ void loop() {
 
             lastDHTRead = millis();
         }
-
-    }
-
-
     // =============================
     // MQTT LOOP (ALWAYS RUN)
     // =============================
@@ -317,6 +313,7 @@ void loop() {
 
             util.connectToMqtt();
         }
+    }
     }
 
     delay(50);

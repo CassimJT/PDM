@@ -8,7 +8,6 @@ CameraManager::CameraManager() {
 bool CameraManager::begin() {
     if (configured) return true;
 
-
     camera_config_t config;
     config.ledc_channel = LEDC_CHANNEL_0;
     config.ledc_timer = LEDC_TIMER_0;
@@ -30,17 +29,23 @@ bool CameraManager::begin() {
     config.pin_reset = RESET_GPIO_NUM;
     config.xclk_freq_hz = 20000000;
     config.pixel_format = PIXFORMAT_JPEG;
-    config.frame_size = FRAMESIZE_QQVGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 2;
+    
+    // OPTIMIZED FOR STABILITY
+    config.frame_size = FRAMESIZE_QVGA;    // 320x240 - smaller for faster processing
+    config.jpeg_quality = 10;              // Better quality, still small
+    config.fb_count = 1;                   // Single frame buffer to save memory
     config.fb_location = CAMERA_FB_IN_PSRAM;
 
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
         configured = false;
-        Serial.printf("Camera init failed with error 0x%x", err);
+        Serial.printf("Camera init failed with error 0x%x\n", err);
+        return false;
     }
+    
     configured = true;
+    Serial.println("Camera initialized (QVGA, single buffer)");
+    return true;
 }
 
 bool CameraManager::isReady() const {
