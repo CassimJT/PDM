@@ -22,6 +22,15 @@
 #define MQTT_COMMAND "plantdoctor/device/" DEVICE_ID "/command"
 #define MQTT_ERROR "plantdoctor/device/" DEVICE_ID "/error"
 
+// =============================
+// NEW MQTT POWER DEFINITIONS
+// =============================
+#define MQTT_POWER "plantdoctor/device/" DEVICE_ID "/power"
+
+// Flags to track MQTT power commands
+extern volatile bool mqttPowerRequested;  // set when a power command arrives
+extern volatile bool mqttPowerState;      // true=on, false=off
+
 class Util
 {
 private:
